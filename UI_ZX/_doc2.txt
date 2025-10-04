@@ -1,0 +1,16 @@
+private void btnCheckHash_Click(object sender, EventArgs e)
+{
+    string filePath = "aa.hkx";
+
+    if (cmbHashAlgo.SelectedItem == null)
+    {
+        MessageBox.Show("กรุณาเลือก Hash Algorithm");
+        return;
+    }
+
+    string algo = cmbHashAlgo.SelectedItem.ToString();
+
+    string hashValue = Lib.GetFileHash(filePath, algo);
+
+    MessageBox.Show($"{algo} : {hashValue}");
+}
