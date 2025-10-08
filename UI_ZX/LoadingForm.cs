@@ -44,6 +44,17 @@ namespace UI_ZX
             }
         }
 
+        public void SetReameApp(string text)
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action(() => this.Text = text));
+            }
+            else
+            {
+                this.Text = text;
+            }
+        }
         public void SetStatus(string text)
         {
             if (labelStatus.InvokeRequired)

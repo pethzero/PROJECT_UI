@@ -39,6 +39,12 @@
             tabControlAPP = new TabControl();
             tabPage2 = new TabPage();
             panel6 = new Panel();
+            label6 = new Label();
+            cbx = new ComboBox();
+            label5 = new Label();
+            btnSelectTop = new Button();
+            txtFolderTop = new TextBox();
+            btnCompareFolder = new Button();
             button4 = new Button();
             label4 = new Label();
             label3 = new Label();
@@ -58,13 +64,14 @@
             panel4 = new Panel();
             panel7 = new Panel();
             panel5 = new Panel();
+            btnLoadBar = new Button();
             tabPage1 = new TabPage();
             label_xml = new Label();
             btnXML = new Button();
             openFileDialog1 = new OpenFileDialog();
             folderBrowserDialog1 = new FolderBrowserDialog();
             label2 = new Label();
-            button2 = new Button();
+            btnProcessTop = new Button();
             contextMenuStrip1.SuspendLayout();
             menuStrip1.SuspendLayout();
             panel2.SuspendLayout();
@@ -158,6 +165,13 @@
             // panel6
             // 
             panel6.BackColor = Color.Gainsboro;
+            panel6.Controls.Add(btnProcessTop);
+            panel6.Controls.Add(label6);
+            panel6.Controls.Add(cbx);
+            panel6.Controls.Add(label5);
+            panel6.Controls.Add(btnSelectTop);
+            panel6.Controls.Add(txtFolderTop);
+            panel6.Controls.Add(btnCompareFolder);
             panel6.Controls.Add(button4);
             panel6.Controls.Add(label4);
             panel6.Controls.Add(label3);
@@ -178,6 +192,64 @@
             panel6.Size = new Size(1057, 557);
             panel6.TabIndex = 7;
             // 
+            // label6
+            // 
+            label6.AutoSize = true;
+            label6.Font = new Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            label6.Location = new Point(46, 334);
+            label6.Name = "label6";
+            label6.Size = new Size(56, 21);
+            label6.TabIndex = 26;
+            label6.Text = "Count";
+            // 
+            // cbx
+            // 
+            cbx.DropDownStyle = ComboBoxStyle.DropDownList;
+            cbx.FormattingEnabled = true;
+            cbx.Items.AddRange(new object[] { "1", "2", "3", "4", "5" });
+            cbx.Location = new Point(117, 336);
+            cbx.Name = "cbx";
+            cbx.Size = new Size(144, 23);
+            cbx.TabIndex = 25;
+            // 
+            // label5
+            // 
+            label5.AutoSize = true;
+            label5.Font = new Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            label5.Location = new Point(46, 299);
+            label5.Name = "label5";
+            label5.Size = new Size(111, 21);
+            label5.TabIndex = 24;
+            label5.Text = "SelectTopFile";
+            // 
+            // btnSelectTop
+            // 
+            btnSelectTop.Location = new Point(304, 386);
+            btnSelectTop.Name = "btnSelectTop";
+            btnSelectTop.Size = new Size(86, 23);
+            btnSelectTop.TabIndex = 22;
+            btnSelectTop.Text = "SelectFolder1";
+            btnSelectTop.UseVisualStyleBackColor = true;
+            btnSelectTop.Click += btnSelectTop_Click;
+            // 
+            // txtFolderTop
+            // 
+            txtFolderTop.Location = new Point(46, 386);
+            txtFolderTop.Name = "txtFolderTop";
+            txtFolderTop.ReadOnly = true;
+            txtFolderTop.Size = new Size(239, 23);
+            txtFolderTop.TabIndex = 23;
+            // 
+            // btnCompareFolder
+            // 
+            btnCompareFolder.Location = new Point(481, 256);
+            btnCompareFolder.Name = "btnCompareFolder";
+            btnCompareFolder.Size = new Size(127, 23);
+            btnCompareFolder.TabIndex = 21;
+            btnCompareFolder.Text = "CopySelectFolder2";
+            btnCompareFolder.UseVisualStyleBackColor = true;
+            btnCompareFolder.Click += btnCompareFolderWithProgress_Click;
+            // 
             // button4
             // 
             button4.Location = new Point(481, 167);
@@ -186,7 +258,7 @@
             button4.TabIndex = 20;
             button4.Text = "Only Folder";
             button4.UseVisualStyleBackColor = true;
-            button4.Click += button4_Click;
+            button4.Click += buttonProcessFindDuplicateFolder_Click;
             // 
             // label4
             // 
@@ -252,6 +324,7 @@
             btnCompare.TabIndex = 13;
             btnCompare.Text = "OK";
             btnCompare.UseVisualStyleBackColor = true;
+            btnCompare.Click += btnCompare_Click;
             // 
             // comboBox1
             // 
@@ -289,6 +362,7 @@
             button1.TabIndex = 11;
             button1.Text = "SelectFile2";
             button1.UseVisualStyleBackColor = true;
+            button1.Click += ButtonFile2_Click;
             // 
             // ButtonFile1
             // 
@@ -298,6 +372,7 @@
             ButtonFile1.TabIndex = 9;
             ButtonFile1.Text = "SelectFile1";
             ButtonFile1.UseVisualStyleBackColor = true;
+            ButtonFile1.Click += ButtonFile1_Click;
             // 
             // textBox1
             // 
@@ -351,12 +426,22 @@
             // 
             panel5.AutoSize = true;
             panel5.BackColor = Color.Gainsboro;
-            panel5.Controls.Add(button2);
+            panel5.Controls.Add(btnLoadBar);
             panel5.Dock = DockStyle.Fill;
             panel5.Location = new Point(0, 0);
             panel5.Name = "panel5";
             panel5.Size = new Size(1063, 563);
             panel5.TabIndex = 0;
+            // 
+            // btnLoadBar
+            // 
+            btnLoadBar.Location = new Point(23, 43);
+            btnLoadBar.Name = "btnLoadBar";
+            btnLoadBar.Size = new Size(156, 23);
+            btnLoadBar.TabIndex = 0;
+            btnLoadBar.Text = "btnLoadBar";
+            btnLoadBar.UseVisualStyleBackColor = true;
+            btnLoadBar.Click += StartLongTaskWithProgress_Click;
             // 
             // tabPage1
             // 
@@ -402,15 +487,15 @@
             label2.TabIndex = 0;
             label2.Text = "label2";
             // 
-            // button2
+            // btnProcessTop
             // 
-            button2.Location = new Point(23, 43);
-            button2.Name = "button2";
-            button2.Size = new Size(75, 23);
-            button2.TabIndex = 0;
-            button2.Text = "button2";
-            button2.UseVisualStyleBackColor = true;
-            button2.Click += button2_Click;
+            btnProcessTop.Location = new Point(46, 436);
+            btnProcessTop.Name = "btnProcessTop";
+            btnProcessTop.Size = new Size(86, 23);
+            btnProcessTop.TabIndex = 27;
+            btnProcessTop.Text = "ProcessTop";
+            btnProcessTop.UseVisualStyleBackColor = true;
+            btnProcessTop.Click += btnProcessTop_Click;
             // 
             // FormApp
             // 
@@ -480,6 +565,13 @@
         private TextBox txbFolder1;
         private Button button4;
         private Label label4;
-        private Button button2;
+        private Button btnLoadBar;
+        private Button btnCompareFolder;
+        private Label label6;
+        private ComboBox cbx;
+        private Label label5;
+        private Button btnSelectTop;
+        private TextBox txtFolderTop;
+        private Button btnProcessTop;
     }
 }

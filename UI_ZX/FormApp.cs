@@ -1,5 +1,6 @@
 using System.Data;
 using System.Text;
+using System.Text.Json;
 using System.Xml.Linq;
 
 namespace UI_ZX
@@ -19,6 +20,7 @@ namespace UI_ZX
         private string? selectedFilePath2 = null;
         private string? selectedFolderPath1 = null;
         private string? selectedFolderPath2 = null;
+        private string? selectedFolderTop = null;
 
         string LocationSave;
 
@@ -69,7 +71,7 @@ namespace UI_ZX
             }
         }
 
-        private void button1_Click(object sender, EventArgs e)
+        private void ButtonFile2_Click(object sender, EventArgs e)
         {
             if (openFileDialog1.ShowDialog() == DialogResult.OK)
             {
@@ -145,7 +147,7 @@ namespace UI_ZX
             }
         }
 
-        private void button4_Click(object sender, EventArgs e)
+        private void buttonFindDuplicateFolder_Click(object sender, EventArgs e)
         {
             if (string.IsNullOrEmpty(selectedFolderPath1))
             {
@@ -160,39 +162,86 @@ namespace UI_ZX
             string filePath = Lib.ExportDuplicateToJson(selectedFolderPath1, saveFolder, "MD5");
 
             MessageBox.Show($"Export สำเร็จ!\nไฟล์ถูกบันทึกที่:\n{filePath}");
-            //  if (string.IsNullOrEmpty(selectedFolderPath1))
-            //  {
-            //      MessageBox.Show("กรุณาเลือกโฟลเดอร์ก่อน");
-            //      return;
-            //  }
-
-            //  var duplicates = Lib.FindDuplicateFiles(selectedFolderPath1, comboBox1.SelectedItem?.ToString() ?? "MD5");
-
-            //  if (duplicates.Count == 0)
-            //  {
-            //      MessageBox.Show("ไม่พบไฟล์ที่ซ้ำกัน");
-            //  }
-            //  else
-            //  {
-            //      StringBuilder sb = new StringBuilder();
-            //      foreach (var kv in duplicates)
-            //      {
-            //          sb.AppendLine($"Hash: {kv.Key}");
-            //          foreach (var file in kv.Value)
-            //              sb.AppendLine("   " + Path.GetFileName(file));
-            //      }
-
-            //      MessageBox.Show(sb.ToString(), "ไฟล์ซ้ำที่พบ");
-            //  }
         }
 
-        private async void button2_Click(object sender, EventArgs e)
+        private async void buttonProcessFindDuplicateFolder_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(selectedFolderPath1))
+            {
+                MessageBox.Show("กรุณาเลือกโฟลเดอร์ก่อน");
+                return;
+            }
+
+            string saveFolder = string.IsNullOrEmpty(Properties.Settings.Default.SettingLocationSave)
+                                ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+                                : Properties.Settings.Default.SettingLocationSave;
+
+            using var cts = new CancellationTokenSource();
+            var loading = new LoadingForm();
+            loading.Cts = cts;
+            loading.SetReameApp("กำลังค้นหาไฟล์ซ้ำ...");
+            loading.Show(this);
+
+            var progress = new Progress<int>(p =>
+            {
+                loading.SetProgress(p);
+                loading.SetStatus($"กำลังค้นหาไฟล์ซ้ำ {p}%");
+            });
+
+            bool canceled = false;
+            string filePath = "";
+
+            try
+            {
+                filePath = await Task.Run(() =>
+                {
+                    return Lib.ExportDuplicateToJsonWithProgress(selectedFolderPath1, saveFolder, "MD5", progress, cts.Token);
+                }, cts.Token);
+
+                if (cts.IsCancellationRequested)
+                {
+                    canceled = true;
+                    label1.Text = "ยกเลิกการทำงาน";
+                }
+                else
+                {
+                    label1.Text = "ค้นหาเสร็จแล้ว!";
+                    MessageBox.Show($"Export สำเร็จ!\nไฟล์ถูกบันทึกที่:\n{filePath}");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                canceled = true;
+                label1.Text = "ยกเลิกการทำงาน";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error: " + ex.Message);
+            }
+            finally
+            {
+                if (canceled)
+                {
+                    loading.SetStatus("กำลังยกเลิก...");
+                    await Task.Delay(500);
+                }
+                if (!loading.IsDisposed)
+                    loading.Close();
+
+                if (canceled)
+                {
+                    MessageBox.Show("งานถูกยกเลิกโดยผู้ใช้", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+        }
+        private async void StartLongTaskWithProgress_Click(object sender, EventArgs e)
         {
             using var cts = new CancellationTokenSource();
             var loading = new LoadingForm();
             loading.Cts = cts;
+            loading.SetReameApp("กำลังโหลดข้อมูล");
 
-            this.Enabled = false;
+            //this.Enabled = false;
             loading.Show(this);
 
             var progress = new Progress<int>(p =>
@@ -201,46 +250,193 @@ namespace UI_ZX
                 loading.SetStatus($"กำลังทำงาน {p}%");
             });
 
+            bool canceled = false;
+
             try
             {
                 await Task.Run(() => DoHeavyWork(progress, cts.Token), cts.Token);
 
-                // ✅ มาถึงตรงนี้ได้ แสดงว่างานเสร็จสมบูรณ์ (ไม่ถูก cancel)
-                label1.Text = "โหลดเสร็จแล้ว!";
+                // ตรวจสอบสถานะ Cancel หลัง Task จบ
+                if (cts.IsCancellationRequested)
+                {
+                    canceled = true;
+                    label1.Text = "ยกเลิกการทำงาน";
+                }
+                else
+                {
+                    label1.Text = "โหลดเสร็จแล้ว!";
+                    MessageBox.Show("งานเสร็จสมบูรณ์!", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
             }
             catch (OperationCanceledException)
             {
-                // ✅ ถ้างานถูก cancel → มาที่นี่
+                canceled = true;
                 label1.Text = "ยกเลิกการทำงาน";
             }
             catch (Exception ex)
             {
-                // กรณี error อื่น ๆ
                 MessageBox.Show("Error: " + ex.Message);
             }
             finally
             {
+                if (canceled)
+                {
+                    loading.SetStatus("กำลังยกเลิก...");
+                    await Task.Delay(500);
+                }
                 if (!loading.IsDisposed)
                     loading.Close();
 
-                this.Enabled = true;
+
+                if (canceled)
+                {
+                    MessageBox.Show("งานถูกยกเลิกโดยผู้ใช้ โปรแกรมจะปิดตัวลง", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    //Application.Exit();
+                }
             }
         }
-
         // ตัวอย่างงานหนัก ต้องตรวจสอบ token เป็นระยะ และ report progress
         private void DoHeavyWork(IProgress<int> progress, CancellationToken token)
         {
             for (int i = 1; i <= 100; i++)
             {
-                // ตรวจสอบ cancellation เป็นระยะ
-                token.ThrowIfCancellationRequested();
-
-                // ทำงานทีละนิด (จำลอง)
-                Thread.Sleep(50); // แทนงานจริงที่ทำ IO / process
-
-                // รายงาน progress (จะกลับมาเรียกบน UI thread ผ่าน IProgress)
+                try
+                {
+                    token.ThrowIfCancellationRequested();
+                }
+                catch (OperationCanceledException)
+                {
+                    // ออกจาก loop ทันที
+                    break;
+                }
+                Thread.Sleep(50);
                 progress.Report(i);
             }
+        }
+
+        private void btnCompareFolder_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(selectedFolderPath1) || string.IsNullOrEmpty(selectedFolderPath2))
+            {
+                MessageBox.Show("กรุณาเลือกโฟลเดอร์ทั้งสองก่อนเปรียบเทียบ");
+                return;
+            }
+
+            try
+            {
+                string saveFolder = string.IsNullOrEmpty(Properties.Settings.Default.SettingLocationSave)
+                  ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+                  : Properties.Settings.Default.SettingLocationSave;
+
+                string algo = comboBox1.SelectedItem?.ToString() ?? "MD5";
+                // เรียก compare
+                var compareResult = Lib.CompareFolderNew(selectedFolderPath1, selectedFolderPath2, algo);
+                // export + copy ไฟล์
+                string newFolder = Lib.ExportSubFolderCompareResultToLocationSave(selectedFolderPath2, compareResult, saveFolder);
+
+                MessageBox.Show($"✅ สำเร็จ! สร้างโฟลเดอร์ใหม่ที่: \n{newFolder}", "สำเร็จ");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"เกิดข้อผิดพลาด: {ex.Message}", "Error");
+            }
+        }
+
+
+        private async void btnCompareFolderWithProgress_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(selectedFolderPath1) || string.IsNullOrEmpty(selectedFolderPath2))
+            {
+                MessageBox.Show("กรุณาเลือกโฟลเดอร์ทั้งสองก่อนเปรียบเทียบ");
+                return;
+            }
+
+            string saveFolder = string.IsNullOrEmpty(Properties.Settings.Default.SettingLocationSave)
+                ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+                : Properties.Settings.Default.SettingLocationSave;
+
+            string algo = comboBox1.SelectedItem?.ToString() ?? "MD5";
+
+            using var cts = new CancellationTokenSource();
+            var loading = new LoadingForm();
+            loading.Cts = cts;
+            loading.SetReameApp("กำลังเปรียบเทียบโฟลเดอร์...");
+            loading.SetStatus($"กำลังเปรียบเทียบ 0%");
+            loading.Show(this);
+
+            var progress = new Progress<int>(p =>
+            {
+                loading.SetProgress(p);
+                loading.SetStatus($"กำลังเปรียบเทียบ {p}%");
+            });
+
+            bool canceled = false;
+            string newFolder = "";
+
+            try
+            {
+                newFolder = await Task.Run(() =>
+                {
+                    var compareResult = Lib.CompareFolderNew(selectedFolderPath1, selectedFolderPath2, algo);
+                    return Lib.ExportSubFolderCompareResultToLocationSaveWithProgress(
+                        selectedFolderPath2, compareResult, saveFolder, progress, cts.Token);
+                }, cts.Token);
+
+                if (cts.IsCancellationRequested)
+                {
+                    canceled = true;
+                    label1.Text = "ยกเลิกการทำงาน";
+                }
+                else
+                {
+                    label1.Text = "เปรียบเทียบเสร็จแล้ว!";
+                    MessageBox.Show($"✅ สำเร็จ! สร้างโฟลเดอร์ใหม่ที่: \n{newFolder}", "สำเร็จ");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                canceled = true;
+                label1.Text = "ยกเลิกการทำงาน";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"เกิดข้อผิดพลาด: {ex.Message}", "Error");
+            }
+            finally
+            {
+                if (canceled)
+                {
+                    loading.SetStatus("กำลังยกเลิก...");
+                    await Task.Delay(500);
+                }
+                if (!loading.IsDisposed)
+                    loading.Close();
+
+                if (canceled)
+                {
+                    MessageBox.Show("งานถูกยกเลิกโดยผู้ใช้", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+        }
+
+        private void btnSelectTop_Click(object sender, EventArgs e)
+        {
+            if (folderBrowserDialog1.ShowDialog() == DialogResult.OK)
+            {
+                // ได้ path ของโฟลเดอร์
+                string selectedFolder = folderBrowserDialog1.SelectedPath;
+                // แสดงผล (หรือเก็บไว้ในตัวแปรก็ได้)
+                MessageBox.Show("คุณเลือกโฟลเดอร์: " + selectedFolder);
+                // เก็บในตัวแปรไว้ใช้งาน
+                selectedFolderTop = selectedFolder;
+                txtFolderTop.Text = selectedFolder;
+            }
+
+        }
+
+        private void btnProcessTop_Click(object sender, EventArgs e)
+        {
+
         }
     }
 }
