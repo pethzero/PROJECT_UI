@@ -39,6 +39,8 @@
             tabControlAPP = new TabControl();
             tabPage2 = new TabPage();
             panel6 = new Panel();
+            btnProcessTopFile = new Button();
+            btnProcessTop = new Button();
             label6 = new Label();
             cbx = new ComboBox();
             label5 = new Label();
@@ -71,7 +73,6 @@
             openFileDialog1 = new OpenFileDialog();
             folderBrowserDialog1 = new FolderBrowserDialog();
             label2 = new Label();
-            btnProcessTop = new Button();
             contextMenuStrip1.SuspendLayout();
             menuStrip1.SuspendLayout();
             panel2.SuspendLayout();
@@ -165,6 +166,7 @@
             // panel6
             // 
             panel6.BackColor = Color.Gainsboro;
+            panel6.Controls.Add(btnProcessTopFile);
             panel6.Controls.Add(btnProcessTop);
             panel6.Controls.Add(label6);
             panel6.Controls.Add(cbx);
@@ -192,6 +194,26 @@
             panel6.Size = new Size(1057, 557);
             panel6.TabIndex = 7;
             // 
+            // btnProcessTopFile
+            // 
+            btnProcessTopFile.Location = new Point(167, 436);
+            btnProcessTopFile.Name = "btnProcessTopFile";
+            btnProcessTopFile.Size = new Size(94, 23);
+            btnProcessTopFile.TabIndex = 28;
+            btnProcessTopFile.Text = "ProcessFile";
+            btnProcessTopFile.UseVisualStyleBackColor = true;
+            btnProcessTopFile.Click += btnProcessTopFileWithProgress_Click;
+            // 
+            // btnProcessTop
+            // 
+            btnProcessTop.Location = new Point(46, 436);
+            btnProcessTop.Name = "btnProcessTop";
+            btnProcessTop.Size = new Size(94, 23);
+            btnProcessTop.TabIndex = 27;
+            btnProcessTop.Text = "ProcessFolder";
+            btnProcessTop.UseVisualStyleBackColor = true;
+            btnProcessTop.Click += btnProcessTopFolderWithProgress_Click;
+            // 
             // label6
             // 
             label6.AutoSize = true;
@@ -218,9 +240,9 @@
             label5.Font = new Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
             label5.Location = new Point(46, 299);
             label5.Name = "label5";
-            label5.Size = new Size(111, 21);
+            label5.Size = new Size(115, 21);
             label5.TabIndex = 24;
-            label5.Text = "SelectTopFile";
+            label5.Text = "SelectTopSize";
             // 
             // btnSelectTop
             // 
@@ -487,16 +509,6 @@
             label2.TabIndex = 0;
             label2.Text = "label2";
             // 
-            // btnProcessTop
-            // 
-            btnProcessTop.Location = new Point(46, 436);
-            btnProcessTop.Name = "btnProcessTop";
-            btnProcessTop.Size = new Size(86, 23);
-            btnProcessTop.TabIndex = 27;
-            btnProcessTop.Text = "ProcessTop";
-            btnProcessTop.UseVisualStyleBackColor = true;
-            btnProcessTop.Click += btnProcessTop_Click;
-            // 
             // FormApp
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -573,5 +585,7 @@
         private Button btnSelectTop;
         private TextBox txtFolderTop;
         private Button btnProcessTop;
+        private Button button2;
+        private Button btnProcessTopFile;
     }
 }

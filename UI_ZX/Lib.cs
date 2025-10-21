@@ -479,5 +479,316 @@ namespace UI_ZX
 
             return newFolder;
         }
+
+
+        /// <summary>
+        /// ข้อมูลโฟลเดอร์พร้อมขนาดรวม (หน่วย byte)
+        /// </summary>
+        public class FolderSizeInfo
+        {
+            public string Path { get; set; } = "";
+            public long SizeBytes { get; set; }
+            public string SizeReadable => FormatBytes(SizeBytes);
+        }
+
+        /// <summary>
+        /// คำนวณหาว่าโฟลเดอร์ใดกินพื้นที่มากที่สุด (top N)
+        /// </summary>
+        /// <param name="rootFolder">โฟลเดอร์หลัก เช่น D:\PROJECT</param>
+        /// <param name="topN">จำนวน top folder ที่ต้องการ</param>
+        public static List<FolderSizeInfo> ProcessFindTopFolder(string rootFolder, int topN = 5)
+        {
+            if (!Directory.Exists(rootFolder))
+                throw new DirectoryNotFoundException($"ไม่พบโฟลเดอร์: {rootFolder}");
+
+            var subFolders = Directory.GetDirectories(rootFolder);
+            var results = new List<FolderSizeInfo>();
+
+            Console.WriteLine($"🔍 กำลังวิเคราะห์ {subFolders.Length} โฟลเดอร์ย่อยใน {rootFolder}...");
+
+            int count = 0;
+            foreach (var folder in subFolders)
+            {
+                count++;
+                try
+                {
+                    long size = GetDirectorySize(folder);
+                    results.Add(new FolderSizeInfo { Path = folder, SizeBytes = size });
+                    Console.WriteLine($"[{count}/{subFolders.Length}] {folder} -> {FormatBytes(size)}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ อ่านโฟลเดอร์ไม่สำเร็จ: {folder} ({ex.Message})");
+                }
+            }
+
+            var topFolders = results.OrderByDescending(r => r.SizeBytes)
+                                    .Take(topN)
+                                    .ToList();
+
+            Console.WriteLine("\n📊 Top " + topN + " โฟลเดอร์ที่ใช้พื้นที่มากที่สุด:");
+            foreach (var item in topFolders)
+                Console.WriteLine($"- {item.Path} : {item.SizeReadable}");
+
+            // (Optional) Export JSON ไว้ใน rootFolder
+            string jsonPath = Path.Combine(rootFolder, "top_folders.json");
+            var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
+            File.WriteAllText(jsonPath, JsonSerializer.Serialize(topFolders, jsonOptions));
+
+            Console.WriteLine($"\n✅ บันทึกผลไว้ที่: {jsonPath}");
+
+            return topFolders;
+        }
+
+        /// <summary>
+        /// คำนวณขนาดรวมของไฟล์ทั้งหมดในโฟลเดอร์ (รวม subfolder)
+        /// </summary>
+        private static long GetDirectorySize(string folder)
+        {
+            long size = 0;
+            try
+            {
+                var files = Directory.GetFiles(folder, "*", SearchOption.AllDirectories);
+                foreach (var f in files)
+                {
+                    try
+                    {
+                        var info = new FileInfo(f);
+                        size += info.Length;
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+            return size;
+        }
+
+        /// <summary>
+        /// แปลง byte → หน่วยอ่านง่าย เช่น 12.3 GB
+        /// </summary>
+        private static string FormatBytes(long bytes)
+        {
+            string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+            double len = bytes;
+            int order = 0;
+            while (len >= 1024 && order < sizes.Length - 1)
+            {
+                order++;
+                len /= 1024;
+            }
+            return $"{len:0.##} {sizes[order]}";
+        }
+
+
+        public class FileSizeInfo
+        {
+            public string Path { get; set; } = "";
+            public long Size { get; set; }
+            public string SizeReadable => Lib.FormatSize(Size);
+        }
+
+        public static List<FileSizeInfo> ProcessFindTopFiles(string rootFolder, int topN)
+        {
+            if (!Directory.Exists(rootFolder))
+                throw new DirectoryNotFoundException("ไม่พบโฟลเดอร์: " + rootFolder);
+
+            var files = Directory
+                .EnumerateFiles(rootFolder, "*", SearchOption.AllDirectories)
+                .Select(f => new FileInfo(f))
+                .Select(fi => new FileSizeInfo { Path = fi.FullName, Size = fi.Length })
+                .OrderByDescending(f => f.Size)
+                .Take(topN)
+                .ToList();
+
+            return files;
+        }
+
+        /// <summary>
+        /// แปลงขนาดไฟล์เป็นหน่วยอ่านง่าย เช่น KB, MB, GB
+        /// </summary>
+        public static string FormatSize(long bytes)
+        {
+            string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+            double len = bytes;
+            int order = 0;
+            while (len >= 1024 && order < sizes.Length - 1)
+            {
+                order++;
+                len /= 1024;
+            }
+            return $"{len:0.##} {sizes[order]}";
+        }
+
+
+
+
+        public static List<FileSizeInfo> ProcessFindTopFilesWithProgress(string rootFolder, int topN, IProgress<int> progress, CancellationToken token)
+        {
+            var allFiles = Directory.EnumerateFiles(rootFolder, "*", SearchOption.AllDirectories).ToList();
+            int total = allFiles.Count;
+            int processed = 0;
+
+            var results = new List<FileSizeInfo>();
+
+            foreach (var file in allFiles)
+            {
+                if (token.IsCancellationRequested)
+                {
+                    // รายงาน progress แล้วหยุดเงียบ ๆ
+                    progress?.Report(100);
+                    break;
+                }
+                try
+                {
+                    var fi = new FileInfo(file);
+                    results.Add(new FileSizeInfo { Path = fi.FullName, Size = fi.Length });
+                }
+                catch { /* ข้ามไฟล์ที่เข้าไม่ได้ */ }
+
+                processed++;
+                int percent = (int)((processed / (double)total) * 100);
+                progress?.Report(percent);
+            }
+
+            return results
+                .OrderByDescending(f => f.Size)
+                .Take(topN)
+                .ToList();
+        }
+
+        public static string ExportTopFileResult(List<FileSizeInfo> files, string sourceFolder, string saveFolder)
+        {
+            string exportPath = Path.Combine(saveFolder, $"TopFiles_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
+
+            using (var sw = new StreamWriter(exportPath, false, Encoding.UTF8))
+            {
+                sw.WriteLine($"📁 Top Files from: {sourceFolder}");
+                sw.WriteLine($"Generated: {DateTime.Now}");
+                sw.WriteLine(new string('-', 70));
+
+                int index = 1;
+                long totalSize = 0;
+
+                foreach (var file in files)
+                {
+                    sw.WriteLine($"{index}. {file.Path}");
+                    sw.WriteLine($"   Size: {Lib.FormatSize(file.Size)}");
+                    sw.WriteLine();
+                    totalSize += file.Size;
+                    index++;
+                }
+
+                sw.WriteLine(new string('-', 70));
+                sw.WriteLine($"Total Size: {Lib.FormatSize(totalSize)}");
+            }
+
+            return exportPath;
+        }
+
+
+
+        public static List<FolderSizeInfo> ProcessFindTopFolderWithProgress(
+            string rootFolder, int topN, IProgress<int> progress, CancellationToken token)
+        {
+            var allFolders = Directory.EnumerateDirectories(rootFolder, "*", SearchOption.AllDirectories).ToList();
+            int total = allFolders.Count;
+            int processed = 0;
+
+            var results = new List<FolderSizeInfo>();
+
+            foreach (var folder in allFolders)
+            {
+                if (token.IsCancellationRequested)
+                {
+                    // รายงาน progress แล้วหยุดเงียบ ๆ
+                    progress?.Report(100);
+                    break;
+                }
+
+                try
+                {
+                    long folderSize = GetFolderSize(folder, token);
+                    results.Add(new FolderSizeInfo { Path = folder, SizeBytes = folderSize });
+                }
+                catch
+                {
+                    // ข้ามโฟลเดอร์ที่เข้าถึงไม่ได้
+                }
+
+                processed++;
+                int percent = (int)((processed / (double)total) * 100);
+                progress?.Report(percent);
+            }
+
+            return results
+                .OrderByDescending(f => f.SizeBytes)
+                .Take(topN)
+                .ToList();
+        }
+
+        private static long GetFolderSize(string folder, CancellationToken token)
+        {
+            long size = 0;
+
+            try
+            {
+                foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+                {
+                    token.ThrowIfCancellationRequested();
+
+                    try
+                    {
+                        var fi = new FileInfo(file);
+                        size += fi.Length;
+                    }
+                    catch
+                    {
+                        // ไฟล์เข้าถึงไม่ได้
+                    }
+                }
+            }
+            catch
+            {
+                // โฟลเดอร์เข้าถึงไม่ได้
+            }
+
+            return size;
+        }
+
+
+        public static string ExportTopFolderResult(List<FolderSizeInfo> folders, string sourceFolder, string saveFolder)
+        {
+            string exportPath = Path.Combine(saveFolder, $"TopFolders_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
+
+            using (var sw = new StreamWriter(exportPath, false, Encoding.UTF8))
+            {
+                sw.WriteLine($"📂 Top Folders from: {sourceFolder}");
+                sw.WriteLine($"Generated: {DateTime.Now}");
+                sw.WriteLine(new string('-', 70));
+
+                int index = 1;
+                long totalSize = 0;
+
+                foreach (var folder in folders)
+                {
+                    sw.WriteLine($"{index}. {folder.Path}");
+                    sw.WriteLine($"   Size: {FormatSize(folder.SizeBytes)}");
+                    sw.WriteLine();
+                    totalSize += folder.SizeBytes;
+                    index++;
+                }
+
+                sw.WriteLine(new string('-', 70));
+                sw.WriteLine($"Total Size: {FormatSize(totalSize)}");
+            }
+
+            return exportPath;
+        }
+
+
+
+
+
     }
 }
+

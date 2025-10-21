@@ -436,7 +436,252 @@ namespace UI_ZX
 
         private void btnProcessTop_Click(object sender, EventArgs e)
         {
+            try
+            {
+                // 1️⃣ ตรวจว่าผู้ใช้เลือกโฟลเดอร์หรือยัง
+                if (string.IsNullOrEmpty(selectedFolderTop) || !Directory.Exists(selectedFolderTop))
+                {
+                    MessageBox.Show("กรุณาเลือกโฟลเดอร์ก่อนเริ่มประมวลผล", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
 
+                // 2️⃣ ตำแหน่งที่ใช้เก็บไฟล์ output
+                string saveFolder = string.IsNullOrEmpty(Properties.Settings.Default.SettingLocationSave)
+                    ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+                    : Properties.Settings.Default.SettingLocationSave;
+
+                // 3️⃣ เรียกฟังก์ชันประมวลผล
+                var topFolders = Lib.ProcessFindTopFolder(selectedFolderTop, 5);
+
+                // 4️⃣ สร้างไฟล์ .txt export
+                string exportPath = Path.Combine(saveFolder, $"top_folders_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
+
+                using (var sw = new StreamWriter(exportPath, false, System.Text.Encoding.UTF8))
+                {
+                    sw.WriteLine($"📊 Top 5 Folders in: {selectedFolderTop}");
+                    sw.WriteLine($"Generated: {DateTime.Now}");
+                    sw.WriteLine(new string('-', 60));
+
+                    int index = 1;
+                    foreach (var f in topFolders)
+                    {
+                        sw.WriteLine($"{index}. {f.Path}");
+                        sw.WriteLine($"   Size: {f.SizeReadable}");
+                        sw.WriteLine();
+                        index++;
+                    }
+                }
+
+                MessageBox.Show($"✅ บันทึกผลเรียบร้อย\n\nไฟล์: {exportPath}",
+                    "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                // (Optional) เปิดโฟลเดอร์หลังบันทึก
+                if (MessageBox.Show("ต้องการเปิดโฟลเดอร์ที่บันทึกไหม?", "เปิดโฟลเดอร์", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                {
+                    System.Diagnostics.Process.Start("explorer.exe", saveFolder);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"เกิดข้อผิดพลาด: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
+
+        private void btnProcessTopFile_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(selectedFolderTop) || !Directory.Exists(selectedFolderTop))
+                {
+                    MessageBox.Show("กรุณาเลือกโฟลเดอร์ก่อนเริ่มค้นหาไฟล์", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                string saveFolder = string.IsNullOrEmpty(Properties.Settings.Default.SettingLocationSave)
+                    ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+                    : Properties.Settings.Default.SettingLocationSave;
+
+                // 🔍 หาไฟล์ที่ใหญ่ที่สุด Top 10
+                var topFiles = Lib.ProcessFindTopFiles(selectedFolderTop, 10);
+
+                string exportPath = Path.Combine(saveFolder, $"top_files_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
+
+                using (var sw = new StreamWriter(exportPath, false, Encoding.UTF8))
+                {
+                    sw.WriteLine($"📄 Top 10 Largest Files in: {selectedFolderTop}");
+                    sw.WriteLine($"Generated: {DateTime.Now}");
+                    sw.WriteLine(new string('-', 70));
+
+                    int index = 1;
+                    foreach (var file in topFiles)
+                    {
+                        sw.WriteLine($"{index}. {file.Path}");
+                        sw.WriteLine($"   Size: {file.SizeReadable}");
+                        sw.WriteLine();
+                        index++;
+                    }
+                }
+
+                MessageBox.Show($"✅ บันทึกผลเรียบร้อย\n\nไฟล์: {exportPath}",
+                    "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                if (MessageBox.Show("ต้องการเปิดโฟลเดอร์ที่บันทึกไหม?", "เปิดโฟลเดอร์", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                {
+                    System.Diagnostics.Process.Start("explorer.exe", saveFolder);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"เกิดข้อผิดพลาด: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+
+
+        ///////////////////
+        private async void btnProcessTopFolderWithProgress_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(selectedFolderTop) || !Directory.Exists(selectedFolderTop))
+            {
+                MessageBox.Show("กรุณาเลือกโฟลเดอร์ก่อนเริ่มค้นหา", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string saveFolder = string.IsNullOrEmpty(Properties.Settings.Default.SettingLocationSave)
+                ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+                : Properties.Settings.Default.SettingLocationSave;
+
+            using var cts = new CancellationTokenSource();
+            var loading = new LoadingForm();
+            loading.Cts = cts;
+            loading.SetReameApp("กำลังประมวลผล Top Folder...");
+            loading.SetStatus("กำลังเริ่มต้น...");
+            loading.Show(this);
+
+            var progress = new Progress<int>(p =>
+            {
+                loading.SetProgress(p);
+                loading.SetStatus($"กำลังวิเคราะห์ {p}%");
+            });
+
+            bool canceled = false;
+            string exportPath = "";
+
+            try
+            {
+                exportPath = await Task.Run(() =>
+                {
+                    var folders = Lib.ProcessFindTopFolderWithProgress(selectedFolderTop, 10, progress, cts.Token);
+                    return Lib.ExportTopFolderResult(folders, selectedFolderTop, saveFolder);
+                }, cts.Token);
+
+                if (cts.IsCancellationRequested)
+                {
+                    canceled = true;
+                }
+                else
+                {
+                    MessageBox.Show($"✅ สำเร็จ! บันทึกไฟล์ที่: \n{exportPath}", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    label1.Text = "ค้นหาโฟลเดอร์เสร็จแล้ว!";
+
+                    if (MessageBox.Show("ต้องการเปิดโฟลเดอร์ที่บันทึกไหม?", "เปิดโฟลเดอร์", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                    {
+                        System.Diagnostics.Process.Start("explorer.exe", saveFolder);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                canceled = true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"เกิดข้อผิดพลาด: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                if (canceled)
+                {
+                    loading.SetStatus("กำลังยกเลิก...");
+                    await Task.Delay(500);
+                    MessageBox.Show("งานถูกยกเลิกโดยผู้ใช้", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    label1.Text = "ยกเลิกการทำงาน";
+                }
+
+                if (!loading.IsDisposed)
+                    loading.Close();
+            }
+        }
+
+        private async void btnProcessTopFileWithProgress_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(selectedFolderTop) || !Directory.Exists(selectedFolderTop))
+            {
+                MessageBox.Show("กรุณาเลือกโฟลเดอร์ก่อนเริ่มค้นหาไฟล์", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string saveFolder = string.IsNullOrEmpty(Properties.Settings.Default.SettingLocationSave)
+                ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+                : Properties.Settings.Default.SettingLocationSave;
+
+            using var cts = new CancellationTokenSource();
+            var loading = new LoadingForm();
+            loading.Cts = cts;
+            loading.SetReameApp("กำลังประมวลผล Top File...");
+            loading.SetStatus("กำลังเริ่มต้น...");
+            loading.Show(this);
+
+            var progress = new Progress<int>(p =>
+            {
+                loading.SetProgress(p);
+                loading.SetStatus($"กำลังสแกน {p}%");
+            });
+
+            bool canceled = false;
+            string exportPath = "";
+
+            try
+            {
+                exportPath = await Task.Run(() =>
+                {
+                    var files = Lib.ProcessFindTopFilesWithProgress(selectedFolderTop, 10, progress, cts.Token);
+                    return Lib.ExportTopFileResult(files, selectedFolderTop, saveFolder);
+                }, cts.Token);
+
+                if (cts.IsCancellationRequested)
+                {
+                    canceled = true;
+                }
+                else
+                {
+                    MessageBox.Show($"✅ สำเร็จ! บันทึกไฟล์ที่: \n{exportPath}", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    label1.Text = "ค้นหาไฟล์เสร็จแล้ว!";
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                canceled = true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"เกิดข้อผิดพลาด: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                if (canceled)
+                {
+                    loading.SetStatus("กำลังยกเลิก...");
+                    await Task.Delay(500);
+                    MessageBox.Show("งานถูกยกเลิกโดยผู้ใช้", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    label1.Text = "ยกเลิกการทำงาน";
+                }
+
+                if (!loading.IsDisposed)
+                    loading.Close();
+            }
+        }
+
+
     }
 }
